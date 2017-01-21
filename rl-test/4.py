@@ -3,6 +3,7 @@ import cv2
 import cv2.cv as cv
 
 
+sys.path.append("game/")
 
 import gym
 import tensorflow as tf
@@ -10,7 +11,7 @@ import numpy as np
 import random
 from collections import deque
 
-
+import wrapped_flappy_bird as game
 
 CNN_INPUT_WIDTH = 80
 CNN_INPUT_HEIGHT = 80
@@ -27,7 +28,7 @@ GAMMA = 0.99
 OBSERVE_TIME = 500
 ENV_NAME = 'Breakout-v3'
 EPISODE = 100000
-STEP = 1500
+STEP = 800
 TEST = 10
 
 
@@ -91,7 +92,7 @@ class DQN():
         self.epsilon = INITIAL_EPSILON
         self.replay_buffer = deque()
         self.recent_history_queue = deque()
-        self.action_dim = env.action_space.n
+        self.action_dim = 2
         self.state_dim = CNN_INPUT_HEIGHT * CNN_INPUT_WIDTH
         self.time_step = 0
 
@@ -253,13 +254,12 @@ class DQN():
 
 
 
-    def percieve(self, state_shadow, action_index, reward, state_shadow_next, done, episode):
+    def percieve(self, state_shadow, action, reward, state_shadow_next, done, time_step):
 
         #
         # state_of_shadow = self.getRecentHistory_stack(state, append_or_not=True)
         # state_of_shadow_next = self.getRecentHistory_stack(next_state, append_or_not=False)
-        action = np.zeros( self.action_dim )
-        action[ action_index ] = 1
+
 
         self.replay_buffer.append([state_shadow, action, reward, state_shadow_next, done])
 
@@ -291,7 +291,8 @@ class DQN():
         else:
             action_index = self.get_greedy_action(state_shadow)
 
-        return action_index
+        action[ action_index ] = 1
+        return action
 
 
     def get_weights(self, shape):
@@ -313,25 +314,25 @@ def main():
     total_reward_decade = 0
 
     # game_state = game.GameState()
+    action = np.zeros( agent.action_dim )
+    action[ 0 ] = 0
 
+    state, reward, done = game_state.frame_step(action)
 
+    state = agent.imageProcess.ColorMat2B( state )  # now state is a binary image of 80 * 80
 
-
+    state_shadow = np.stack( ( state, state, state, state ), axis = 2 )
 
     for episode in xrange(EPISODE):
-
         total_reward = 0
-        state = env.reset()
-        state = agent.imageProcess.ColorMat2Binary(state)  # now state is a binary image of 80 * 80
-        state_shadow = np.stack((state, state, state, state), axis=2)
 
         for step in xrange(STEP):
-            env.render()
+
             action = agent.get_action(state_shadow)
 
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done = game_state.frame_step(action)
 
-            next_state = np.reshape( agent.imageProcess.ColorMat2Binary( next_state ), ( 80,80,1 ) )
+            next_state = np.reshape( agent.imageProcess.ColorMat2B( next_state ), ( 80,80,1 ) )
 
             # print next_state.shape
             # print state_shadow.shape
@@ -350,7 +351,22 @@ def main():
             print 'Decade:', episode / 10, 'Total Reward in this Decade is:', total_reward_decade
             print '-------------'
             total_reward_decade = 0
-
+            # summary = agent.session.run()
+            # agent.summary_writer.add_summary( summary, episode )
+            # print 'Episode:', episode, 'Debug Reward this Episode is:', debug_reward
+            # if episode % 10 == 0:
+            # 	total_reward = 0
+            # 	for test in xrange( TEST ):
+            # 		state = env.reset()
+            # 		for step in xrange(STEP):
+            # 			env.render()
+            # 			action = agent.get_greedy_action( state )
+            # 			next_state, reward, done, _ = env.step( action )
+            # 			reward = reward * REWARD_COFF
+            # 			state = next_state
+            # 			total_reward += reward
+            # 			if done:
+            # 				break
 
 
 if __name__ == '__main__':
